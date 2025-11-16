@@ -113,12 +113,13 @@ def login_page(headers, body):
 @app.route('/', methods=['GET'])
 @app.route('/index.html', methods=['GET'])
 def index(headers, body):
-    """Serve main chat interface"""
+    """Serve main chat interface - requires authentication"""
     if not check_cookie(headers):
+        # Return 401 with HTML link to login page
         return {
             "_status": 401,
-            "_content": b'Unauthorized',
-            "_mime": "text/plain"
+            "_content": b'<h1>401 Unauthorized</h1><p>Please login</p><a href="/login.html">Login</a>',
+            "_mime": "text/html"
         }
     return "www/index.html"
 
