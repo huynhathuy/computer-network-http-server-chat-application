@@ -74,7 +74,7 @@ def parse_form_data(body):
 # Authentication Routes
 @app.route('/login', methods=['POST'])
 def login(headers, body):
-    """Handle user login"""
+    """Handle user login - returns index.html directly on success with Set-Cookie"""
     print("[SampleApp] Login request")
     data = parse_form_data(body)
     username = data.get('username', '')
@@ -82,12 +82,22 @@ def login(headers, body):
     
     # Simple authentication (educational purposes only)
     if username == 'admin' and password == 'password':
-        return {
-            "_status": 200,
-            "_content": b'{"status":"ok"}',
-            "_mime": "application/json",
-            "Set-Cookie": "auth=true; Path=/"
-        }
+        # Read index.html content to return directly with Set-Cookie header
+        try:
+            with open('www/index.html', 'rb') as f:
+                content = f.read()
+            return {
+                "_status": 200,
+                "_content": content,
+                "_mime": "text/html",
+                "Set-Cookie": "auth=true; Path=/"
+            }
+        except FileNotFoundError:
+            return {
+                "_status": 500,
+                "_content": b'Internal Server Error',
+                "_mime": "text/plain"
+            }
     else:
         return {
             "_status": 401,
