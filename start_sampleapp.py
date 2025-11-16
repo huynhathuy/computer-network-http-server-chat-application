@@ -74,7 +74,7 @@ def parse_form_data(body):
 # Authentication Routes
 @app.route('/login', methods=['POST'])
 def login(headers, body):
-    """Handle user login"""
+    """Handle user login - returns index.html directly on success with Set-Cookie"""
     print("[SampleApp] Login request")
     data = parse_form_data(body)
     username = data.get('username', '')
@@ -82,12 +82,22 @@ def login(headers, body):
     
     # Simple authentication (educational purposes only)
     if username == 'admin' and password == 'password':
-        return {
-            "_status": 200,
-            "_content": b'{"status":"ok"}',
-            "_mime": "application/json",
-            "Set-Cookie": "auth=true; Path=/"
-        }
+        # Read index.html content to return directly with Set-Cookie header
+        try:
+            with open('www/index.html', 'rb') as f:
+                content = f.read()
+            return {
+                "_status": 200,
+                "_content": content,
+                "_mime": "text/html",
+                "Set-Cookie": "auth=true; Path=/"
+            }
+        except FileNotFoundError:
+            return {
+                "_status": 500,
+                "_content": b'Internal Server Error',
+                "_mime": "text/plain"
+            }
     else:
         return {
             "_status": 401,
@@ -103,12 +113,13 @@ def login_page(headers, body):
 @app.route('/', methods=['GET'])
 @app.route('/index.html', methods=['GET'])
 def index(headers, body):
-    """Serve main chat interface"""
+    """Serve main chat interface - requires authentication"""
     if not check_cookie(headers):
+        # Return 401 with HTML link to login page
         return {
             "_status": 401,
-            "_content": b'Unauthorized',
-            "_mime": "text/plain"
+            "_content": b'<h1>401 Unauthorized</h1><p>Please login</p><a href="/login.html">Login</a>',
+            "_mime": "text/html"
         }
     return "www/index.html"
 

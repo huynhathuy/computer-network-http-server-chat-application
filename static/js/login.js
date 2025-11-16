@@ -26,24 +26,34 @@
         })
         .then(response => {
             if (response.ok) {
-                return response.json();
+                // Check if response is HTML (successful login returns index.html)
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('text/html')) {
+                    // Store user info
+                    sessionStorage.setItem('username', username);
+                    sessionStorage.setItem('auth', 'true');
+                    
+                    // Register as peer
+                    registerPeer(username).then(() => {
+                        // Server returned index.html with Set-Cookie, redirect to display it
+                        window.location.href = '/index.html';
+                    });
+                } else {
+                    // JSON response for backward compatibility
+                    return response.json().then(data => {
+                        if (data.status === 'ok') {
+                            sessionStorage.setItem('username', username);
+                            sessionStorage.setItem('auth', 'true');
+                            registerPeer(username).then(() => {
+                                window.location.href = '/index.html';
+                            });
+                        } else {
+                            errorMessage.textContent = 'Login failed. Please try again.';
+                        }
+                    });
+                }
             } else {
                 throw new Error('Login failed');
-            }
-        })
-        .then(data => {
-            if (data.status === 'ok') {
-                // Store user info
-                sessionStorage.setItem('username', username);
-                sessionStorage.setItem('auth', 'true');
-                
-                // Register as peer
-                registerPeer(username).then(() => {
-                    // Redirect to chat
-                    window.location.href = '/index.html';
-                });
-            } else {
-                errorMessage.textContent = 'Login failed. Please try again.';
             }
         })
         .catch(error => {
