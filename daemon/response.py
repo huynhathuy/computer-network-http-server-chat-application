@@ -207,11 +207,20 @@ class Response():
         filepath = os.path.join(base_dir, path.lstrip('/'))
 
         print("[Response] serving the object at location {}".format(filepath))
-            #
-            #  TODO: implement the step of fetch the object file
-            #        store in the return value of content
-            #
-        return len(content), content
+        
+        try:
+            # Read the file content
+            with open(filepath, 'rb') as f:
+                content = f.read()
+            return len(content), content
+        except FileNotFoundError:
+            # Return 404 error content if file not found
+            error_content = b'404 Not Found'
+            return len(error_content), error_content
+        except Exception as e:
+            # Return 500 error content for other errors
+            error_content = f'500 Internal Server Error: {str(e)}'.encode('utf-8')
+            return len(error_content), error_content
 
 
     def build_response_header(self, request):
