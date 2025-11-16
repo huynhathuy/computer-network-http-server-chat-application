@@ -207,11 +207,20 @@ class Response():
         filepath = os.path.join(base_dir, path.lstrip('/'))
 
         print("[Response] serving the object at location {}".format(filepath))
-            #
-            #  TODO: implement the step of fetch the object file
-            #        store in the return value of content
-            #
-        return len(content), content
+        
+        # Implement file loading as per IMPLEMENTATION.md requirement for file serving
+        try:
+            with open(filepath, 'rb') as f:
+                content = f.read()
+            return len(content), content
+        except FileNotFoundError:
+            # Return 404 error content if file not found
+            error_content = b'404 Not Found'
+            return len(error_content), error_content
+        except Exception as e:
+            # Return 500 error content for other errors
+            error_content = f'500 Internal Server Error: {str(e)}'.encode('utf-8')
+            return len(error_content), error_content
 
 
     def build_response_header(self, request):
@@ -226,7 +235,7 @@ class Response():
         reqhdr = request.headers
         rsphdr = self.headers
 
-        #Build dynamic headers
+        # Build dynamic headers
         headers = {
                 "Accept": "{}".format(reqhdr.get("Accept", "application/json")),
                 "Accept-Language": "{}".format(reqhdr.get("Accept-Language", "en-US,en;q=0.9")),
@@ -234,11 +243,6 @@ class Response():
                 "Cache-Control": "no-cache",
                 "Content-Type": "{}".format(self.headers['Content-Type']),
                 "Content-Length": "{}".format(len(self._content)),
-#                "Cookie": "{}".format(reqhdr.get("Cookie", "sessionid=xyz789")), #dummy cooki
-        #
-        # TODO prepare the request authentication
-        #
-	# self.auth = ...
                 "Date": "{}".format(datetime.datetime.utcnow().strftime("%a, %d %b %Y %H:%M:%S GMT")),
                 "Max-Forward": "10",
                 "Pragma": "no-cache",
@@ -247,16 +251,25 @@ class Response():
                 "User-Agent": "{}".format(reqhdr.get("User-Agent", "Chrome/123.0.0.0")),
             }
 
-        # Header text alignment
-            #
-            #  TODO: implement the header building to create formated
-            #        header from the provied headers
-            #
-        #
-        # TODO prepare the request authentication
-        #
-	# self.auth = ...
-        return str(fmt_header).encode('utf-8')
+        # Build formatted HTTP response header per IMPLEMENTATION.md
+        # Start with status line
+        fmt_header = f"HTTP/1.1 {self.status_code} {self.reason}\r\n"
+        
+        # Add response-specific headers from self.headers
+        for key, value in rsphdr.items():
+            if key not in ['Content-Type', 'Content-Length']:  # Already added above
+                fmt_header += f"{key}: {value}\r\n"
+        
+        # Add standard headers
+        fmt_header += f"Content-Type: {self.headers['Content-Type']}\r\n"
+        fmt_header += f"Content-Length: {len(self._content)}\r\n"
+        fmt_header += f"Connection: close\r\n"
+        
+        # End headers with blank line
+        fmt_header += "\r\n"
+        
+        return fmt_header.encode('utf-8')
+
 
 
     def build_notfound(self):
