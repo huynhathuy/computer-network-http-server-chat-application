@@ -23,6 +23,7 @@ The current version supports MIME type detection, content loading and header for
 import datetime
 import os
 import mimetypes
+import json
 from .dictionary import CaseInsensitiveDict
 
 BASE_DIR = ""
@@ -158,14 +159,23 @@ class Response():
                 base_dir = BASE_DIR+"static/"
             elif sub_type == 'html':
                 base_dir = BASE_DIR+"www/"
+            elif sub_type == 'javascript':
+                base_dir = BASE_DIR+"static/"
             else:
                 handle_text_other(sub_type)
         elif main_type == 'image':
             base_dir = BASE_DIR+"static/"
             self.headers['Content-Type']='image/{}'.format(sub_type)
         elif main_type == 'application':
-            base_dir = BASE_DIR+"apps/"
-            self.headers['Content-Type']='application/{}'.format(sub_type)
+            if sub_type == 'javascript':
+                base_dir = BASE_DIR+"static/"
+                self.headers['Content-Type']='application/javascript'
+            elif sub_type == 'json':
+                base_dir = BASE_DIR+"apps/"
+                self.headers['Content-Type']='application/json'
+            else:
+                base_dir = BASE_DIR+"apps/"
+                self.headers['Content-Type']='application/{}'.format(sub_type)
         #
         #  TODO: process other mime_type
         #        application/xml       
@@ -299,3 +309,128 @@ class Response():
         self._header = self.build_response_header(request)
 
         return self._header + self._content
+    
+    def build_response_from_handler(self, request, handler_result):
+        """
+        Build HTTP response from route handler return value.
+        
+        Supports multiple return types:
+        - Dict with _status/_content/_mime → Custom response
+        - Dict → JSON response
+        - Bytes → Binary response  
+        - String (filepath) → File response
+        
+        :param request: Request object
+        :param handler_result: Return value from route handler
+        :return: Complete HTTP response bytes
+        """
+        
+        if isinstance(handler_result, dict):
+            # Check for custom response format
+            if '_status' in handler_result or '_content' in handler_result:
+                status_code = handler_result.get('_status', 200)
+                content = handler_result.get('_content', b'')
+                mime_type = handler_result.get('_mime', 'application/octet-stream')
+                
+                # Build status line
+                status_text = {
+                    200: 'OK',
+                    201: 'Created',
+                    400: 'Bad Request',
+                    401: 'Unauthorized',
+                    404: 'Not Found',
+                    405: 'Method Not Allowed',
+                    500: 'Internal Server Error'
+                }.get(status_code, 'OK')
+                
+                response = "HTTP/1.1 {} {}\r\n".format(status_code, status_text)
+                
+                # Add custom headers
+                for key, value in handler_result.items():
+                    if not key.startswith('_'):
+                        response += "{}: {}\r\n".format(key, value)
+                
+                # Add standard headers
+                response += "Content-Type: {}\r\n".format(mime_type)
+                response += "Content-Length: {}\r\n".format(len(content))
+                response += "Connection: close\r\n"
+                response += "\r\n"
+                
+                return response.encode('utf-8') + content
+            else:
+                # Regular dict → JSON response
+                try:
+                    json_data = json.dumps(handler_result)
+                    content = json_data.encode('utf-8')
+                    
+                    response = "HTTP/1.1 200 OK\r\n"
+                    response += "Content-Type: application/json\r\n"
+                    response += "Content-Length: {}\r\n".format(len(content))
+                    response += "Connection: close\r\n"
+                    response += "\r\n"
+                    
+                    return response.encode('utf-8') + content
+                except Exception as e:
+                    print("[Response] Error encoding JSON: {}".format(e))
+                    return self.build_error_response(500, "Internal Server Error")
+        
+        elif isinstance(handler_result, bytes):
+            # Binary response
+            response = "HTTP/1.1 200 OK\r\n"
+            response += "Content-Type: application/octet-stream\r\n"
+            response += "Content-Length: {}\r\n".format(len(handler_result))
+            response += "Connection: close\r\n"
+            response += "\r\n"
+            
+            return response.encode('utf-8') + handler_result
+        
+        elif isinstance(handler_result, str):
+            # File path response
+            try:
+                # Handler returns the path directly (e.g., "www/login.html")
+                file_path = handler_result
+                
+                # Determine MIME type
+                mime_type = self.get_mime_type(handler_result)
+                
+                if not os.path.exists(file_path):
+                    print("[Response] File not found: {}".format(file_path))
+                    return self.build_notfound()
+                
+                with open(file_path, 'rb') as f:
+                    content = f.read()
+                
+                response = "HTTP/1.1 200 OK\r\n"
+                response += "Content-Type: {}\r\n".format(mime_type or 'application/octet-stream')
+                response += "Content-Length: {}\r\n".format(len(content))
+                response += "Connection: close\r\n"
+                response += "\r\n"
+                
+                return response.encode('utf-8') + content
+                
+            except Exception as e:
+                print("[Response] Error serving file {}: {}".format(handler_result, e))
+                return self.build_error_response(500, "Internal Server Error")
+        
+        else:
+            # Unknown type, return error
+            return self.build_error_response(500, "Invalid handler return type")
+    
+    def build_error_response(self, status_code, message):
+        """Build a simple error response"""
+        content = message.encode('utf-8')
+        status_text = {
+            400: 'Bad Request',
+            401: 'Unauthorized',
+            404: 'Not Found',
+            405: 'Method Not Allowed',
+            500: 'Internal Server Error'
+        }.get(status_code, 'Error')
+        
+        response = "HTTP/1.1 {} {}\r\n".format(status_code, status_text)
+        response += "Content-Type: text/plain\r\n"
+        response += "Content-Length: {}\r\n".format(len(content))
+        response += "Connection: close\r\n"
+        response += "\r\n"
+        
+        return response.encode('utf-8') + content

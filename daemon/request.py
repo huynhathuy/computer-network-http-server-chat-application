@@ -46,6 +46,7 @@ class Request():
         "body",
         "routes",
         "hook",
+        "query_params",
     ]
 
     def __init__(self):
@@ -65,6 +66,8 @@ class Request():
         self.routes = {}
         #: Hook point for routed mapped-path
         self.hook = None
+        #: Query parameters parsed from URL
+        self.query_params = {}
 
     def extract_request_line(self, request):
         try:
@@ -78,6 +81,27 @@ class Request():
             return None, None
 
         return method, path, version
+    
+    def _parse_query(self, query_string):
+        """
+        Parse query string into a dictionary of parameters.
+        
+        :param query_string (str): Query string from URL (e.g., "channel=general&user=admin")
+        :rtype: dict - Dictionary of query parameters
+        """
+        params = {}
+        if not query_string:
+            return params
+        
+        for pair in query_string.split('&'):
+            if '=' in pair:
+                key, value = pair.split('=', 1)
+                params[key] = value
+            else:
+                # Handle parameters without values
+                params[pair] = ''
+        
+        return params
              
     def prepare_headers(self, request):
         """Prepares the given HTTP headers."""
@@ -94,6 +118,15 @@ class Request():
 
         # Prepare the request line from the request header
         self.method, self.path, self.version = self.extract_request_line(request)
+        
+        # Store original path with query string for backward compatibility
+        original_path = self.path
+        
+        # Parse query parameters if present
+        if self.path and '?' in self.path:
+            self.path, query_string = self.path.split('?', 1)
+            self.query_params = self._parse_query(query_string)
+        
         print("[Request] {} path {} version {}".format(self.method, self.path, self.version))
 
         #
@@ -112,6 +145,9 @@ class Request():
             #
 
         self.headers = self.prepare_headers(request)
+        # Add path with query string for backward compatibility
+        self.headers['path'] = original_path
+        
         cookies = self.headers.get('cookie', '')
             #
             #  TODO: implement the cookie function here

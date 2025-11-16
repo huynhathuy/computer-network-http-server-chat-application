@@ -102,22 +102,59 @@ class HttpAdapter:
         # Response handler
         resp = self.response
 
-        # Handle the request
-        msg = conn.recv(1024).decode()
-        req.prepare(msg, routes)
+        # Read request headers
+        raw_request = b""
+        while True:
+            chunk = conn.recv(1024)
+            raw_request += chunk
+            if b"\r\n\r\n" in raw_request:
+                break
+            if len(raw_request) > 10000:  # Prevent excessive memory usage
+                break
+        
+        # Split headers and body
+        parts = raw_request.split(b"\r\n\r\n", 1)
+        header_data = parts[0].decode('utf-8', errors='ignore')
+        body_data = parts[1] if len(parts) > 1 else b""
+        
+        # Check for Content-Length to read remaining body
+        content_length = 0
+        for line in header_data.split('\r\n'):
+            if line.lower().startswith('content-length:'):
+                try:
+                    content_length = int(line.split(':', 1)[1].strip())
+                except:
+                    pass
+        
+        # Read remaining body if needed
+        while len(body_data) < content_length:
+            chunk = conn.recv(min(1024, content_length - len(body_data)))
+            if not chunk:
+                break
+            body_data += chunk
+        
+        # Prepare request
+        req.prepare(header_data, routes)
 
-        # Handle request hook
+        # Handle request hook (route handler)
+        result = None
         if req.hook:
-            print("[HttpAdapter] hook in route-path METHOD {} PATH {}".format(req.hook._route_path,req.hook._route_methods))
-            req.hook(headers = "bksysnet",body = "get in touch")
-            #
-            # TODO: handle for App hook here
-            #
+            print("[HttpAdapter] Invoking route: {} {}".format(req.method, req.path))
+            try:
+                # Pass headers dict and body to handler
+                result = req.hook(headers=req.headers, body=body_data)
+                # Build response from handler result
+                response = resp.build_response_from_handler(req, result)
+            except Exception as e:
+                print("[HttpAdapter] Error in route handler: {}".format(e))
+                import traceback
+                traceback.print_exc()
+                response = resp.build_error_response(500, "Internal Server Error")
+        else:
+            # No route found, try serving static file
+            response = resp.build_response(req)
 
-        # Build response
-        response = resp.build_response(req)
-
-        #print(response)
+        # Send response
         conn.sendall(response)
         conn.close()
 

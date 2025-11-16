@@ -1,21 +1,48 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-    <title>bksysnet@hcmut welcome</title>
-
-    <meta charset="utf-8" />
-    <meta http-equiv="Content-type" content="text/html; charset=utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="stylesheet" href="css/styles.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Application</title>
+    <link rel="stylesheet" href="/static/css/chat.css">
 </head>
-
 <body>
-<div>
-    <h1>bksysnet@hcmut  Domain</h1>
-    <p>This domain is for use in illustrative examples in documents.
-    </p>
-  
-       <img src="images/welcome.png" alt="bksysnet at HCMUT" width="500" height="600">  
-</div>
+    <div class="chat-container">
+        <div class="sidebar">
+            <h2>Chat</h2>
+            <div class="user-info">
+                <span id="currentUsername">User</span>
+                <button id="logoutBtn" class="btn-small">Logout</button>
+            </div>
+            
+            <div class="section">
+                <h3>CHANNELS</h3>
+                <div id="channelsList"></div>
+                <button id="createChannelBtn" class="btn-small">+ New Channel</button>
+            </div>
+            
+            <div class="section">
+                <h3>ONLINE USERS</h3>
+                <div id="usersList"></div>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="chat-header">
+                <h2 id="messagesHeader">#general</h2>
+            </div>
+            
+            <div class="messages-container" id="messagesContainer">
+                <!-- Messages will be inserted here -->
+            </div>
+            
+            <div class="message-input">
+                <input type="text" id="messageInput" placeholder="Type a message..." />
+                <button id="sendBtn">Send</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/static/js/chat.js"></script>
 </body>
 </html>
